@@ -90,14 +90,22 @@ func getMessageBody(msg *imap.Message) string {
 
 		fullBody := buf.String()
 
-		startMarker := "Please enter the following passphrase in the app to log in:"
-		endMarker := "This passphrase will expire in 15 minutes."
+		// Debug logging
+		log.Printf("Full email body: %s", fullBody)
+
+		startMarker := "Please enter the following passcode in the app to log in:"
+		endMarker := "This passcode will expire in 15 minutes."
 
 		if startIdx := strings.Index(fullBody, startMarker); startIdx != -1 {
-			if endIdx := strings.Index(fullBody, endMarker); endIdx != -1 {
-				passphrase := fullBody[startIdx+len(startMarker) : endIdx]
+			// Start from the end of the start marker
+			contentAfterStart := fullBody[startIdx+len(startMarker):]
+			if endIdx := strings.Index(contentAfterStart, endMarker); endIdx != -1 {
+				passphrase := contentAfterStart[:endIdx]
 				passphrase = cleanupHTML(passphrase)
+				// Debug logging
+				log.Printf("Extracted passphrase: %s", passphrase)
 				body = passphrase
+				return body // Return first valid passcode found
 			}
 		}
 	}
@@ -214,8 +222,10 @@ func getFilteredMessages(c *client.Client, subject string) ([]Email, error) {
 	for msg := range messages {
 		// Debug: Print message date
 		log.Printf("Processing message from: %v\n", msg.Envelope.Date)
+		// Add debug logging for the subject
+		log.Printf("Message subject: %v", msg.Envelope.Subject)
 
-		body := getMessageBody(msg)
+		//body := getMessageBody(msg)
 
 		// Extract sender info
 		var sender string
@@ -231,7 +241,7 @@ func getFilteredMessages(c *client.Client, subject string) ([]Email, error) {
 		email := Email{
 			Subject: msg.Envelope.Subject,
 			Date:    msg.Envelope.Date,
-			Body:    body,
+			Body:    getMessageBody(msg),
 			Sender:  sender,
 		}
 
@@ -277,7 +287,7 @@ func main() {
 		}
 		defer c.Logout()
 
-		subject := "Your Login Passphrase"
+		subject := "Your Login passcode for milesAI is"
 
 		emails, err := getFilteredMessages(c, subject)
 		if err != nil {
@@ -288,7 +298,7 @@ func main() {
 		data := PageData{
 			Emails: emails,
 		}
-
+		log.Printf("Template data: %+v", data)
 		tmpl.Execute(w, data)
 	}))
 
